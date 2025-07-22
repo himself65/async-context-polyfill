@@ -9,16 +9,7 @@ export class PromiseWithContext<T> extends OriginalPromise<T> {
       const fork = AsyncStack.fork();
       const wrapResolve = createAsyncResolver(fork, resolve);
       const wrapReject = createAsyncResolver(fork, reject);
-      callback(
-        (...args) => {
-          // console.log('wrapResolve', args)
-          return wrapResolve(...args)
-        },
-        (...args) => {
-          // console.log('wrapReject', args)
-          return wrapReject(...args)
-        }
-      );
+      callback(wrapResolve, wrapReject);
       fork.yield();
     })
   }
@@ -28,8 +19,6 @@ export class PromiseWithContext<T> extends OriginalPromise<T> {
   }
 
   catch<T, B>(...args: any[]) {
-    // super.catch(...args);
-    // console.log('catch')
     return callWithContext.call(this, super.catch, args)
   }
 
