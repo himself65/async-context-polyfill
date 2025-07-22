@@ -5,28 +5,26 @@ type AnyFunction = (...args: any) => any;
 
 type VariableDataBox<Value = any> = { value: Value };
 
-export class AsyncStore {
+export class AsyncVariable<Value = any> {
+  data = new WeakMap<AsyncStack, VariableDataBox>();
+
   static stopWalkAt = new WeakSet<AsyncStack>();
   static variableByStack = new WeakMap<AsyncStack, Set<AsyncVariable>>();
-  static linkVariableWithStack(variable: AsyncVariable, stack: AsyncStack) {
-    if (!AsyncStore.variableByStack.has(stack)) {
-      AsyncStore.variableByStack.set(stack, new Set());
+  static registerVariable(variable: AsyncVariable, stack: AsyncStack) {
+    if (!AsyncVariable.variableByStack.has(stack)) {
+      AsyncVariable.variableByStack.set(stack, new Set());
     }
 
-    AsyncStore.variableByStack.get(stack).add(variable);
+    AsyncVariable.variableByStack.get(stack).add(variable);
   }
-}
 
-export class AsyncVariable<Value = any> {
-  private data = new WeakMap<AsyncStack, VariableDataBox>();
-
-  private getBox(stack: AsyncStack): VariableDataBox<Value> | undefined {
+  getBox(stack: AsyncStack): VariableDataBox<Value> | undefined {
     if (!stack) return undefined;
 
     const currentBox = this.data.get(stack);
     if (currentBox) return currentBox;
 
-    const canWalkOrigin = AsyncStore.stopWalkAt.has(stack);
+    const canWalkOrigin = AsyncVariable.stopWalkAt.has(stack);
     if (canWalkOrigin) return undefined;
 
     const parentBox = this.getBox(stack.origin);
@@ -34,14 +32,15 @@ export class AsyncVariable<Value = any> {
     return parentBox;
   }
 
-  private setBox(stack: AsyncStack, box: { value: Value }) {
-    AsyncStore.linkVariableWithStack(this, stack);
+  setBox(stack: AsyncStack, box: { value: Value }) {
+    AsyncVariable.registerVariable(this, stack);
     this.data.set(stack, box);
   }
 
-  set(value: Value) {
-    const current = AsyncStack.getCurrent();
-    this.setBox(current, { value });
+  set(stack: AsyncStack, data: any) {
+    this.setBox(stack, {
+      value: data,
+    });
   }
 
   get(): Value {
@@ -55,10 +54,7 @@ export class AsyncVariable<Value = any> {
   ): Fn extends (...args: any[]) => infer R ? R : any {
     return runInFork(() => {
       const current = AsyncStack.getCurrent();
-      this.setBox(current, {
-        value: data,
-      });
-
+      this.set(current, data);
       return callback();
     });
   }
